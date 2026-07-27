@@ -87,7 +87,10 @@ export async function POST(request: Request) {
     if (nte <= 0) return Response.json({ error:"A customer-authorized NTE is required." },{status:400});
     const customerWo = payload.customerWo?.trim() || `DEMO-${Date.now().toString().slice(-6)}`;
     const estimate = estimateRequest(payload.title, payload.description, nte);
-    const result = await db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost) VALUES (?,?,?,?,?,?,?,?,?)").bind(customerWo,payload.facilityId||1,payload.title.trim(),payload.description.trim(),"Vendor invitation",payload.urgent?"urgent":"routine",nte,estimate.customerPrice,estimate.vendorCost).run();
+    const facilityName = Number(payload.facilityId) === 2 ? "Westgate Plaza" : "Parkview Commons";
+    const facility = await db.prepare("SELECT id FROM facilities WHERE name=? ORDER BY id DESC LIMIT 1").bind(facilityName).first<{id:number}>();
+    if (!facility) return Response.json({ error:"The selected facility could not be found." },{status:404});
+    const result = await db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost) VALUES (?,?,?,?,?,?,?,?,?)").bind(customerWo,facility.id,payload.title.trim(),payload.description.trim(),"Vendor invitation",payload.urgent?"urgent":"routine",nte,estimate.customerPrice,estimate.vendorCost).run();
     const workOrderId = Number(result.meta.last_row_id);
     await db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(workOrderId,"Great Lakes Door Co.","invited",estimate.vendorCost).run();
     return Response.json({ ok:true, id:workOrderId, customerWo, estimate },{status:201});
