@@ -29,6 +29,11 @@ function estimateRequest(title: string, description: string, nte: number) {
 
 async function seedIfEmpty() {
   const db = getDemoDb();
+  const invitationColumns = await db.prepare("PRAGMA table_info(invitations)").all<{ name:string }>();
+  if (invitationColumns.results.length && !invitationColumns.results.some(column => column.name === "original_amount")) {
+    await db.prepare("ALTER TABLE invitations ADD COLUMN original_amount integer DEFAULT 0 NOT NULL").run();
+  }
+  if (invitationColumns.results.length) await db.prepare("UPDATE invitations SET original_amount=offered_amount WHERE original_amount=0").run();
   const count = await db.prepare("SELECT COUNT(*) AS count FROM facilities").first<{ count: number }>();
   if (Number(count?.count ?? 0) > 0) return;
   await db.batch([
