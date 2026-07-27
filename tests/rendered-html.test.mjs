@@ -1,0 +1,40 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+async function render() {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+  return worker.fetch(new Request("http://localhost/", { headers: { accept: "text/html" } }), {
+    ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) },
+  }, { waitUntil() {}, passThroughOnException() {} });
+}
+
+test("server-renders the Fieldline operations prototype", async () => {
+  const response = await render();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+  const html = await response.text();
+  assert.match(html, /<title>Fieldline by FDI/);
+  assert.match(html, /Loading dock door won’t close/);
+  assert.match(html, />Bids<\/button>/);
+  assert.match(html, /Approved to schedule/);
+  assert.match(html, /Customer WO/);
+  assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
+});
+
+test("preserves the recovered brief and pilot boundaries", async () => {
+  const [brief, page, packageJson] = await Promise.all([
+    readFile(new URL("../PRODUCT_BRIEF.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(brief, /not an open marketplace/i);
+  assert.match(brief, /QuickBooks Online remains the accounting system/i);
+  assert.match(brief, /no automatic \$5,000/i);
+  assert.match(page, /customerPrice.*vendorCost \/ \(1 - margin \/ 100\)/);
+  assert.match(page, /Vendors cannot see who else was invited/);
+  assert.match(page, /Do not proceed beyond approved scope or NTE/);
+  assert.doesNotMatch(packageJson, /react-loading-skeleton/);
+});
