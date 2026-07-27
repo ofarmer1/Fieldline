@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 type Stage = "overview" | "intake" | "bids" | "approval" | "field" | "closeout";
+type Section = "work" | "vendors" | "customers" | "accounting";
 
 const stages: { id: Stage; label: string; short: string }[] = [
   { id: "overview", label: "Job overview", short: "Overview" },
@@ -28,6 +29,7 @@ function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone
 }
 
 export default function Home() {
+  const [section, setSection] = useState<Section>("work");
   const [stage, setStage] = useState<Stage>("overview");
   const [margin, setMargin] = useState(25);
   const [selectedVendor, setSelectedVendor] = useState(0);
@@ -48,10 +50,10 @@ export default function Home() {
       <aside className="sidebar">
         <div className="brand"><span className="brand-mark">F</span><div><strong>Fieldline</strong><small>by FDI</small></div></div>
         <nav aria-label="Primary">
-          <button className="nav-item active"><span>⌂</span> Work orders <b>12</b></button>
-          <button className="nav-item"><span>◈</span> Vendors</button>
-          <button className="nav-item"><span>▤</span> Customers</button>
-          <button className="nav-item"><span>◎</span> Accounting</button>
+          <button className={`nav-item ${section === "work" ? "active" : ""}`} onClick={() => setSection("work")}><span>⌂</span> Work orders <b>12</b></button>
+          <button className={`nav-item ${section === "vendors" ? "active" : ""}`} onClick={() => setSection("vendors")}><span>◈</span> Vendors</button>
+          <button className={`nav-item ${section === "customers" ? "active" : ""}`} onClick={() => setSection("customers")}><span>▤</span> Customers</button>
+          <button className={`nav-item ${section === "accounting" ? "active" : ""}`} onClick={() => setSection("accounting")}><span>◎</span> Accounting</button>
         </nav>
         <div className="pilot-card"><Badge tone="blue">Pilot workspace</Badge><p>Southeast Michigan</p><small>3 customers · 4 vendors</small></div>
         <div className="user-card"><span className="avatar">OF</span><div><strong>Oliver Farmer</strong><small>Administrator</small></div><span>•••</span></div>
@@ -59,11 +61,11 @@ export default function Home() {
 
       <section className="workspace">
         <header className="topbar">
-          <div className="breadcrumbs"><span>Work orders</span><i>/</i><strong>WO-1048</strong></div>
+          <div className="breadcrumbs"><span>{section === "work" ? "Work orders" : section[0].toUpperCase() + section.slice(1)}</span>{section === "work" && <><i>/</i><strong>WO-1048</strong></>}</div>
           <div className="top-actions"><button className="icon-button" aria-label="Search">⌕</button><button className="icon-button" aria-label="Notifications">♢<em>2</em></button><button className="primary" onClick={() => flash("Update shared with the assigned team")}>Send update <span>↗</span></button></div>
         </header>
 
-        <div className="content">
+        {section === "work" ? <div className="content">
           <div className="job-heading">
             <div><div className="eyebrow"><Badge tone="green">Approved to schedule</Badge><span>•</span><span>Routine FM</span></div><h1>Loading dock door won’t close</h1><p>Parkview Commons <span>·</span> 2840 E. Maple Rd, Troy, MI</p></div>
             <div className="heading-actions"><button className="secondary" onClick={() => flash("Work order details copied")}>Copy link</button><button className="primary" onClick={() => setStage("field")}>Schedule vendor</button></div>
@@ -87,10 +89,65 @@ export default function Home() {
           {stage === "approval" && <Approval margin={margin} setMargin={setMargin} vendorCost={vendorCost} customerPrice={customerPrice} withinNte={withinNte} flash={flash} />}
           {stage === "field" && <Field flash={flash} />}
           {stage === "closeout" && <Closeout flash={flash} />}
-        </div>
+        </div> : <SectionPage section={section} flash={flash} />}
       </section>
     </main>
   );
+}
+
+function SectionPage({ section, flash }: { section: Exclude<Section, "work">; flash: (s: string) => void }) {
+  if (section === "vendors") return <VendorsPage flash={flash} />;
+  if (section === "customers") return <CustomersPage flash={flash} />;
+  return <AccountingPage flash={flash} />;
+}
+
+function VendorsPage({ flash }: { flash: (s: string) => void }) {
+  const [filter, setFilter] = useState("All vendors");
+  const vendors = [
+    { initials: "GL", name: "Great Lakes Door Co.", trade: "Door systems", territory: "45 mi · SE Michigan", compliance: "Compliant", expiry: "Insurance Mar 2027", score: "94%", active: "2 active jobs" },
+    { initials: "MC", name: "Motor City Access", trade: "Door systems", territory: "30 mi · Metro Detroit", compliance: "Compliant", expiry: "License Dec 2026", score: "86%", active: "1 active job" },
+    { initials: "NF", name: "Northstar Facilities", trade: "Unit cleanouts", territory: "Oakland & Macomb", compliance: "Review soon", expiry: "Insurance expires Aug 12", score: "81%", active: "No active jobs" },
+    { initials: "CR", name: "Clean Reset Services", trade: "Unit cleanouts", territory: "Wayne County", compliance: "Blocked", expiry: "Insurance expired Jul 20", score: "78%", active: "Assignments blocked" },
+  ];
+  const visible = filter === "All vendors" ? vendors : filter === "Compliant" ? vendors.filter(v => v.compliance === "Compliant") : vendors.filter(v => v.compliance !== "Compliant");
+  return <div className="content section-page"><div className="section-heading"><div><div className="eyebrow">APPROVED NETWORK · SOUTHEAST MICHIGAN</div><h1>Vendors</h1><p>Control coverage, compliance, and performance across FDI’s private network.</p></div><button className="primary" onClick={() => flash("Vendor invitation prepared")}>＋ Invite vendor</button></div>
+    <div className="summary-cards"><div><span className="summary-icon">◈</span><small>Approved vendors</small><strong>4</strong><em>2 trades covered</em></div><div><span className="summary-icon green-bg">✓</span><small>Fully compliant</small><strong>2</strong><em>Eligible for assignment</em></div><div><span className="summary-icon amber-bg">!</span><small>Needs attention</small><strong>2</strong><em>1 assignment blocked</em></div><div><span className="summary-icon blue-bg">◎</span><small>Average response</small><strong>41 min</strong><em>Past 30 days</em></div></div>
+    <section className="panel directory"><div className="directory-tools"><div className="search-box">⌕<input aria-label="Search vendors" placeholder="Search vendors, trades, or territory" /></div><div className="filter-tabs">{["All vendors","Compliant","Needs attention"].map(item => <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item}</button>)}</div></div>
+      <div className="directory-head vendor-directory"><span>Vendor</span><span>Trade & territory</span><span>Compliance</span><span>Performance</span><span>Workload</span></div>
+      {visible.map((v, i) => <button className="directory-row vendor-directory" key={v.name} onClick={() => flash(`${v.name} profile opened`)}><div className="vendor-cell"><span className={`vendor-logo v${i % 3}`}>{v.initials}</span><div><strong>{v.name}</strong><small>Approved FDI vendor</small></div></div><div><strong>{v.trade}</strong><small>{v.territory}</small></div><div><Badge tone={v.compliance === "Compliant" ? "green" : v.compliance === "Blocked" ? "red" : "amber"}>{v.compliance}</Badge><small>{v.expiry}</small></div><div><strong>{v.score} fit</strong><small>Quality & responsiveness</small></div><div><strong>{v.active}</strong><small>View details →</small></div></button>)}
+    </section>
+  </div>;
+}
+
+function CustomersPage({ flash }: { flash: (s: string) => void }) {
+  return <div className="content section-page"><div className="section-heading"><div><div className="eyebrow">PILOT CUSTOMERS</div><h1>Customers & facilities</h1><p>Customer-specific work-order sources, approval rules, facilities, and service history.</p></div><button className="primary" onClick={() => flash("Customer setup started")}>＋ Add customer</button></div>
+    <div className="summary-cards three"><div><span className="summary-icon">▤</span><small>Pilot customers</small><strong>3</strong><em>8 facilities</em></div><div><span className="summary-icon green-bg">✓</span><small>Open work orders</small><strong>7</strong><em>5 inside original NTE</em></div><div><span className="summary-icon blue-bg">↳</span><small>Connected sources</small><strong>3</strong><em>ServiceChannel · Email · App</em></div></div>
+    <div className="customer-grid">{[
+      { name:"Northpoint Retail Group", code:"NR", facilities:"3 facilities", source:"ServiceChannel", open:"4 open", spend:"$8,420", color:"forest", place:"Troy · Rochester Hills · Novi" },
+      { name:"Redwood Residential", code:"RR", facilities:"2 facilities", source:"wo@ email", open:"2 open", spend:"$3,180", color:"blue", place:"Detroit · Royal Oak" },
+      { name:"Lakeshore Commerce", code:"LC", facilities:"3 facilities", source:"Customer app", open:"1 open", spend:"$1,940", color:"sand", place:"Southfield · Livonia · Canton" },
+    ].map(c => <button className="customer-card" key={c.name} onClick={() => flash(`${c.name} workspace opened`)}><div className="customer-top"><span className={`customer-logo ${c.color}`}>{c.code}</span><Badge tone="green">Active pilot</Badge></div><h3>{c.name}</h3><p>{c.place}</p><div className="customer-metrics"><div><small>Portfolio</small><strong>{c.facilities}</strong></div><div><small>Current work</small><strong>{c.open}</strong></div><div><small>30-day billing</small><strong>{c.spend}</strong></div></div><div className="source-chip"><span>↳</span><div><small>Primary intake</small><strong>{c.source}</strong></div><i>→</i></div></button>)}</div>
+    <section className="panel activity-panel"><div className="panel-title"><div><h2>Facility activity</h2><p>Recent work across the pilot portfolio.</p></div><button className="text-button">View all work orders</button></div>{[
+      ["Parkview Commons — Troy","Loading dock door won’t close","Approved to schedule","Northpoint Retail","$1,000"],
+      ["Woodward Flats — Detroit","Unit 312 cleanout","Vendor onsite","Redwood Residential","$840"],
+      ["Westgate Plaza — Livonia","Rear entry spring failure","Awaiting bids","Lakeshore Commerce","$1,600 NTE"],
+    ].map((row,i) => <button className="activity-row" key={row[0]} onClick={() => flash(`${row[0]} work order opened`)}><span className="facility-mark">⌂</span><div><strong>{row[0]}</strong><small>{row[1]}</small></div><Badge tone={i===0?"green":i===1?"blue":"amber"}>{row[2]}</Badge><div><strong>{row[3]}</strong><small>{row[4]}</small></div><span>→</span></button>)}</section>
+  </div>;
+}
+
+function AccountingPage({ flash }: { flash: (s: string) => void }) {
+  const [accountingFilter, setAccountingFilter] = useState("Needs action");
+  const rows = [
+    { wo:"WO-1048", job:"Loading dock door", customer:"Northpoint Retail", vendor:"Great Lakes Door", vendorInvoice:"$750", customerInvoice:"$1,000", status:"Prepare invoice", tone:"amber" as const },
+    { wo:"WO-1044", job:"Unit 312 cleanout", customer:"Redwood Residential", vendor:"Clean Reset Services", vendorInvoice:"$630", customerInvoice:"$840", status:"Ready for QBO", tone:"blue" as const },
+    { wo:"WO-1039", job:"Rear door spring", customer:"Lakeshore Commerce", vendor:"Motor City Access", vendorInvoice:"$1,080", customerInvoice:"$1,440", status:"Customer invoiced", tone:"green" as const },
+    { wo:"WO-1031", job:"Vacant unit cleanout", customer:"Northpoint Retail", vendor:"Northstar Facilities", vendorInvoice:"$525", customerInvoice:"$700", status:"Paid", tone:"green" as const },
+  ];
+  return <div className="content section-page"><div className="section-heading"><div><div className="eyebrow">OPERATIONAL ACCOUNTING</div><h1>Accounting</h1><p>Prepare clean handoffs to QuickBooks Online and track status without moving money.</p></div><button className="primary" onClick={() => flash("QuickBooks handoff report prepared")}>Export QBO handoff</button></div>
+    <div className="accounting-banner"><span className="qbo-mark">QBO</span><div><strong>QuickBooks Online is the accounting system of record</strong><p>Fieldline holds the proposal, approvals, authorization, and operational evidence. Payments and bank information remain outside this prototype.</p></div><Badge tone="green">Workflow aligned</Badge></div>
+    <div className="summary-cards"><div><span className="summary-icon amber-bg">!</span><small>Needs action</small><strong>2</strong><em>$1,840 customer billing</em></div><div><span className="summary-icon blue-bg">↗</span><small>Ready for QBO</small><strong>1</strong><em>Evidence complete</em></div><div><span className="summary-icon green-bg">✓</span><small>Customer invoiced</small><strong>$2,140</strong><em>This month</em></div><div><span className="summary-icon">$</span><small>Gross profit</small><strong>$745</strong><em>25.0% blended margin</em></div></div>
+    <section className="panel directory"><div className="directory-tools"><div className="filter-tabs">{["Needs action","All jobs","Invoiced","Paid"].map(item => <button key={item} className={accountingFilter === item ? "active" : ""} onClick={() => setAccountingFilter(item)}>{item}</button>)}</div><button className="secondary" onClick={() => flash("Accounting list downloaded")}>↓ Download</button></div><div className="directory-head accounting-directory"><span>Work order</span><span>Customer / vendor</span><span>Vendor invoice</span><span>Customer invoice</span><span>Status</span></div>{rows.filter(r => accountingFilter === "All jobs" || accountingFilter === "Needs action" && ["Prepare invoice","Ready for QBO"].includes(r.status) || accountingFilter === "Invoiced" && r.status === "Customer invoiced" || accountingFilter === "Paid" && r.status === "Paid").map(r => <button className="directory-row accounting-directory" key={r.wo} onClick={() => flash(`${r.wo} accounting record opened`)}><div><strong>{r.wo}</strong><small>{r.job}</small></div><div><strong>{r.customer}</strong><small>{r.vendor}</small></div><div><strong>{r.vendorInvoice}</strong><small>Vendor → FDI</small></div><div><strong>{r.customerInvoice}</strong><small>FDI → customer</small></div><div><Badge tone={r.tone}>{r.status}</Badge><small>Open record →</small></div></button>)}</section>
+  </div>;
 }
 
 function Overview({ onOpen }: { onOpen: (stage: Stage) => void }) {
