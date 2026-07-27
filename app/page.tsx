@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 type Stage = "overview" | "intake" | "bids" | "approval" | "field" | "closeout";
 type Section = "work" | "vendors" | "customers" | "accounting";
+type Role = "fdi" | "vendor" | "customer";
 
 const stages: { id: Stage; label: string; short: string }[] = [
   { id: "overview", label: "Job overview", short: "Overview" },
@@ -29,6 +30,7 @@ function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone
 }
 
 export default function Home() {
+  const [role, setRole] = useState<Role>("fdi");
   const [section, setSection] = useState<Section>("work");
   const [stage, setStage] = useState<Stage>("overview");
   const [margin, setMargin] = useState(25);
@@ -43,6 +45,8 @@ export default function Home() {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2600);
   }
+
+  if (role !== "fdi") return <ExternalPortal role={role} setRole={setRole} flash={flash} notice={notice} />;
 
   return (
     <main className="app-shell">
@@ -62,7 +66,7 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar">
           <div className="breadcrumbs"><span>{section === "work" ? "Work orders" : section[0].toUpperCase() + section.slice(1)}</span>{section === "work" && <><i>/</i><strong>WO-1048</strong></>}</div>
-          <div className="top-actions"><button className="icon-button" aria-label="Search">⌕</button><button className="icon-button" aria-label="Notifications">♢<em>2</em></button><button className="primary" onClick={() => flash("Update shared with the assigned team")}>Send update <span>↗</span></button></div>
+          <div className="top-actions"><RoleSwitcher role={role} setRole={setRole} /><button className="icon-button" aria-label="Search">⌕</button><button className="icon-button" aria-label="Notifications">♢<em>2</em></button><button className="primary" onClick={() => flash("Update shared with the assigned team")}>Send update <span>↗</span></button></div>
         </header>
 
         {section === "work" ? <div className="content">
@@ -93,6 +97,47 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+function RoleSwitcher({ role, setRole, light = false }: { role: Role; setRole: (role: Role) => void; light?: boolean }) {
+  return <div className={`role-switcher ${light ? "light" : ""}`} aria-label="View prototype as"><small>View as</small>{(["fdi","vendor","customer"] as Role[]).map(item => <button key={item} className={role === item ? "active" : ""} onClick={() => setRole(item)}>{item === "fdi" ? "FDI" : item === "vendor" ? "Vendor" : "Store Manager"}</button>)}</div>;
+}
+
+function ExternalPortal({ role, setRole, flash, notice }: { role: Exclude<Role,"fdi">; setRole: (role: Role) => void; flash: (s: string) => void; notice: string }) {
+  const [tab, setTab] = useState(role === "vendor" ? "opportunity" : "request");
+  const isVendor = role === "vendor";
+  return <main className={`external-shell ${isVendor ? "vendor-portal" : "customer-portal"}`}>
+    {notice && <div className="toast" role="status"><span>✓</span>{notice}</div>}
+    <header className="external-header"><div className="brand external-brand"><span className="brand-mark">F</span><div><strong>Fieldline</strong><small>{isVendor ? "Vendor portal" : "Customer portal"}</small></div></div><RoleSwitcher role={role} setRole={setRole} light /><div className="external-user"><span className="avatar">{isVendor ? "GL" : "MS"}</span><div><strong>{isVendor ? "Great Lakes Door Co." : "Maria Santos"}</strong><small>{isVendor ? "Approved vendor" : "Store Manager"}</small></div></div></header>
+    <section className="external-content">
+      <div className="portal-context"><div><Badge tone={isVendor ? "amber" : "green"}>{isVendor ? "Action required" : "Service scheduled"}</Badge><h1>{isVendor ? "Loading dock door won’t close" : "Your service request"}</h1><p>Parkview Commons · 2840 E. Maple Rd, Troy, MI</p></div><div className="wo-card"><small>WORK ORDER</small><strong>SC-847219</strong><span>{isVendor ? "FDI-1048" : "Submitted today at 8:42 AM"}</span></div></div>
+      <div className="portal-tabs">{(isVendor ? [["opportunity","Job details"],["messages","Messages"],["schedule","Schedule"],["evidence","Completion"]] : [["request","Request"],["proposal","Proposal"],["schedule","Schedule"],["updates","Updates"]]).map(([id,label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</div>
+      {isVendor ? <VendorExperience tab={tab} setTab={setTab} flash={flash} /> : <CustomerExperience tab={tab} setTab={setTab} flash={flash} />}
+    </section>
+    <footer className="portal-footer"><span>Fieldline by FDI</span><span>Need help? Contact your FDI coordinator.</span></footer>
+  </main>;
+}
+
+function VendorExperience({ tab, setTab, flash }: { tab: string; setTab: (tab: string) => void; flash: (s: string) => void }) {
+  if (tab === "messages") return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Messages with FDI</h2><p>Your private conversation about this assignment.</p></div><Badge tone="green">Zak Keller · FMC</Badge></div><div className="portal-message fdi"><span className="avatar coral">ZK</span><div><strong>Zak Keller <small>10:31 AM</small></strong><p>Please confirm your arrival window. Diagnose and make safe, then contact me before any work outside the authorized scope.</p></div></div><div className="portal-message mine"><div><strong>You <small>10:36 AM</small></strong><p>Confirmed. We can arrive Tuesday between 8:00 and 10:00 AM.</p></div></div><div className="portal-compose"><input placeholder="Message FDI about this job…"/><button onClick={() => flash("Message sent to FDI")}>Send</button></div></section><VendorGuardrail /></div>;
+  if (tab === "schedule") return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Service schedule</h2><p>Coordinate arrival directly with FDI.</p></div></div><div className="big-date"><div><strong>28</strong><small>JUL</small></div><div><small>TUESDAY</small><h3>8:00–10:00 AM</h3><p>Parkview Commons · Loading dock</p></div><Badge tone="green">Confirmed</Badge></div><div className="access-note"><strong>Arrival instructions</strong><p>Check in through the work order on arrival. Site contact and access instructions will be released within 24 hours of service.</p></div><button className="secondary" onClick={() => flash("Reschedule request sent to FDI")}>Request a different time</button></section><VendorGuardrail /></div>;
+  if (tab === "evidence") return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Complete the work order</h2><p>Submit a clear record before invoicing FDI.</p></div><Badge tone="blue">Not started</Badge></div><div className="vendor-checklist">{["Record arrival time","Add diagnosis","Upload condition photos","Describe temporary measures","Document completed work","Confirm whether a return visit is required"].map((x,i)=><label key={x}><span>{i+1}</span><div><strong>{x}</strong><small>{i===2?"At least 2 photos required":"Required for closeout"}</small></div><button onClick={() => flash(`${x} opened`)}>Add →</button></label>)}</div><button className="primary full" onClick={() => flash("Completion package saved as draft")}>Save completion draft</button></section><VendorGuardrail /></div>;
+  return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Assignment details</h2><p>Review the scope and respond to FDI.</p></div><Badge tone="amber">Response due today</Badge></div><div className="vendor-job-hero"><div className="door-visual"><span>Loading dock</span></div><div><small>TRADE</small><strong>Commercial door systems</strong><small>SERVICE TYPE</small><strong>Routine repair</strong><small>REQUESTED ARRIVAL</small><strong>Tue, Jul 28 · 8–10 AM</strong></div></div><div className="scope-box"><small>AUTHORIZED SCOPE</small><h3>Inspect, make safe, and replace failed spring</h3><p>Loading dock door will not close fully. Spring appears damaged and the door is currently secured. Check in on arrival and send a diagnosis before beginning work outside this scope.</p></div><div className="vendor-money"><div><small>Your authorized amount</small><strong>$750</strong><span>Invoice FDI upon completion</span></div><div><small>Authorization status</small><strong className="green-text">Approved</strong><span>Do not exceed without approval</span></div></div><div className="portal-actions"><button className="secondary" onClick={() => setTab("messages")}>Ask FDI a question</button><button className="primary" onClick={() => {flash("Assignment accepted"); setTab("schedule")}}>Accept assignment</button></div></section><VendorGuardrail /></div>;
+}
+
+function VendorGuardrail() {
+  return <aside className="portal-panel portal-side"><div className="shield">✓</div><h3>Your private vendor workspace</h3><p>Only your company and FDI can see your pricing, messages, schedule, evidence, and invoice.</p><div className="guardrail"><small>AUTHORIZED AMOUNT</small><strong>$750</strong><p>Stop and request authorization before exceeding this amount or the assigned scope.</p></div><div className="contact-card"><span className="avatar coral">ZK</span><div><small>FDI COORDINATOR</small><strong>Zak Keller</strong><p>Typically responds within 30 minutes</p></div></div></aside>;
+}
+
+function CustomerExperience({ tab, setTab, flash }: { tab: string; setTab: (tab: string) => void; flash: (s: string) => void }) {
+  if (tab === "proposal") return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>FDI service proposal</h2><p>A single, complete price for the authorized work.</p></div><Badge tone="green">Inside your NTE</Badge></div><div className="proposal-total"><div><small>FDI CUSTOMER PRICE</small><strong>$1,000</strong><span>Not to exceed for the described scope</span></div><div className="nte-ring"><strong>$200</strong><small>remaining under your<br/>$1,200 issued NTE</small></div></div><div className="scope-box"><small>PROPOSED WORK</small><h3>Inspect, make safe, and replace failed loading-dock spring</h3><p>FDI will coordinate a qualified, compliant service provider; oversee scheduling and communication; collect completion evidence; and invoice after accepted completion.</p></div><div className="approval-strip"><span>✓</span><div><strong>No further approval is required</strong><p>This proposal is within the NTE issued with ServiceChannel work order SC-847219.</p></div></div><button className="primary full" onClick={() => {flash("Proposal acknowledged");setTab("schedule")}}>Acknowledge & view schedule</button></section><CustomerHelp /></div>;
+  if (tab === "schedule") return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Scheduled service</h2><p>FDI is coordinating the service visit.</p></div><Badge tone="green">Confirmed</Badge></div><div className="big-date"><div><strong>28</strong><small>JUL</small></div><div><small>TUESDAY</small><h3>8:00–10:00 AM</h3><p>Expected arrival window · Loading dock</p></div></div><div className="timeline customer-timeline"><article className="done"><span className="timeline-dot">✓</span><div><strong>Request received</strong><p>Today · 8:42 AM</p></div></article><article className="done"><span className="timeline-dot">✓</span><div><strong>FDI reviewed and scheduled service</strong><p>Today · 10:36 AM</p></div></article><article className="current"><span className="timeline-dot">3</span><div><strong>Service visit</strong><p>Tuesday · 8:00–10:00 AM</p></div></article><article><span className="timeline-dot">4</span><div><strong>Completion review</strong><p>Photos and work summary will appear here</p></div></article></div><button className="secondary" onClick={() => flash("Scheduling question sent to FDI")}>Ask FDI about the schedule</button></section><CustomerHelp /></div>;
+  if (tab === "updates") return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Updates from FDI</h2><p>The latest status of your request.</p></div></div><div className="update-feed"><article><span>✓</span><div><strong>Service scheduled</strong><p>FDI has scheduled service for Tuesday between 8:00 and 10:00 AM.</p><small>Today · 10:36 AM</small></div></article><article><span>✓</span><div><strong>Proposal inside authorized NTE</strong><p>The $1,000 FDI price is within your issued $1,200 NTE, so no additional approval is required.</p><small>Today · 10:24 AM</small></div></article><article><span>↳</span><div><strong>Request received from ServiceChannel</strong><p>Work order SC-847219 was received and assigned to an FDI coordinator.</p><small>Today · 8:42 AM</small></div></article></div><div className="portal-compose"><input placeholder="Ask FDI for an update…"/><button onClick={() => flash("Question sent to FDI")}>Send</button></div></section><CustomerHelp /></div>;
+  return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Request details</h2><p>Submitted from ServiceChannel today at 8:42 AM.</p></div><Badge tone="green">FDI coordinating</Badge></div><div className="customer-request"><div className="door-visual"><span>Your photo · Loading dock</span></div><div className="scope-box"><small>YOUR REQUEST</small><h3>Loading dock door won’t close</h3><p>Spring appears damaged and the door is currently secured. Inspect, make safe, and replace the failed spring as authorized.</p></div></div><div className="customer-facts"><div><small>Issued NTE</small><strong>$1,200</strong></div><div><small>FDI proposal</small><strong>$1,000</strong></div><div><small>Service window</small><strong>Tue · 8–10 AM</strong></div></div><div className="approval-strip"><span>✓</span><div><strong>Your request is moving forward</strong><p>FDI’s proposal is within your issued NTE. No additional action is required from you.</p></div></div><button className="primary" onClick={() => setTab("proposal")}>Review FDI proposal →</button></section><CustomerHelp /></div>;
+}
+
+function CustomerHelp() {
+  return <aside className="portal-panel portal-side"><div className="shield customer-shield">F</div><h3>FDI is managing the work</h3><p>Your FDI coordinator handles service-provider selection, scheduling, quality control, evidence, and billing.</p><div className="contact-card"><span className="avatar coral">ZK</span><div><small>YOUR FDI COORDINATOR</small><strong>Zak Keller</strong><p>Typically responds within 30 minutes</p></div></div><div className="privacy-customer"><strong>A simpler customer view</strong><p>You see one FDI proposal and one accountable point of contact—without vendor bidding or internal administration.</p></div></aside>;
 }
 
 function SectionPage({ section, flash }: { section: Exclude<Section, "work">; flash: (s: string) => void }) {
