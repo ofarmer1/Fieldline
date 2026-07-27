@@ -17,10 +17,10 @@ test("server-renders the Fieldline operations prototype", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
   const html = await response.text();
   assert.match(html, /<title>Fieldline by FDI/);
-  assert.match(html, /Loading dock door won’t close/);
-  assert.match(html, />Bids<\/button>/);
-  assert.match(html, /Approved to schedule/);
-  assert.match(html, /Customer WO/);
+  assert.match(html, /Live workflow/);
+  assert.match(html, /Customer requests route automatically/);
+  assert.match(html, /Auto-routing on/);
+  assert.match(html, /FDI exceptions/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 
@@ -39,5 +39,8 @@ test("preserves the recovered brief and pilot boundaries", async () => {
   assert.match(page, /onClick=\{\(\)=>setSelected\(job\)\}>View details/);
   assert.match(page, /function VendorMyJobs/);
   assert.match(page, /onClick=\{\(\)=>setSelected\(r\)\}/);
+  assert.match(page, /action:"counter_offer"/);
+  assert.match(page, /function LiveWorkflowPage/);
+  assert.match(page, /Authorize & submit/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });

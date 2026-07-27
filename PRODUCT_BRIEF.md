@@ -1,5 +1,11 @@
 # FDI Facilities Marketplace — Recovered Product Brief
 
+## Product evolution: connected, exception-based dispatch
+
+The prototype now demonstrates one continuous transaction rather than separate role-specific examples. For routine work, a store manager submits the scope and customer-authorized NTE; the system normalizes the request, estimates vendor cost and FDI customer price using the 25% gross-margin rule, applies configured vendor eligibility controls, and creates a private invitation automatically. The vendor may accept, decline, or counter. Acceptance schedules the same shared work order and updates the customer and FDI views. Declines, counteroffers, low-confidence scopes, compliance failures, and NTE exceptions enter an FDI review queue.
+
+FDI remains the accountable managed-service operator and controls the approved network, eligibility rules, pricing policy, exception handling, quality, customer invoicing, and vendor administration. This is not a public marketplace. Customers continue to see one FDI price; vendor pricing, FDI margin, competing vendors, and selection logic remain private.
+
 ## Purpose and boundary
 
 This repository is Oliver Farmer's independent prototype for FDI's facilities-maintenance workflow. It is separate from FDI's current PBR roadmap. The prototype is a private, managed network—not an open marketplace. Customers receive one final FDI proposal; vendor invitations, bids, selection logic, and FDI margin remain internal.
@@ -40,4 +46,3 @@ Oliver should work with Zak to obtain three anonymized examples: a routine repai
 ## Prototype direction
 
 Provisional product name: **Fieldline** — “Every work order, under control.” The prototype is a desktop-first operations cockpit with realistic Michigan pilot data, a guided job record, private bid review, pricing calculator, NTE history, evidence, and closeout status. It uses browser-local demo state only; no production integrations or persistent customer data are implied.
-
