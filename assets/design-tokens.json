@@ -1,0 +1,13 @@
+{
+  "brand": "FDI",
+  "color": {
+    "primary": "#0B5CAD",
+    "primaryHover": "#084A8B",
+    "primarySoft": "#DBEAFE",
+    "black": "#09090A",
+    "white": "#FFFFFF",
+    "surface": "#F7F8FA",
+    "textMuted": "#626A76",
+    "border": "#DFE3E8"
+  }
+}
