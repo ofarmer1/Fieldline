@@ -36,5 +36,8 @@ test("preserves the recovered brief and pilot boundaries", async () => {
   assert.match(page, /customerPrice.*vendorCost \/ \(1 - margin \/ 100\)/);
   assert.match(page, /Vendors cannot see who else was invited/);
   assert.match(page, /Do not proceed beyond approved scope or NTE/);
+  assert.match(page, /onClick=\{\(\)=>setSelected\(job\)\}>View details/);
+  assert.match(page, /function VendorMyJobs/);
+  assert.match(page, /onClick=\{\(\)=>setSelected\(r\)\}/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });
