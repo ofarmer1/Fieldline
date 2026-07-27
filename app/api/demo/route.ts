@@ -36,18 +36,22 @@ async function seedIfEmpty() {
     db.prepare("INSERT INTO facilities (customer,name,address,city,latitude,longitude) VALUES (?,?,?,?,?,?)").bind("Northpoint Retail Group","Westgate Plaza","31100 Novi Rd","Novi, MI",42.5216,-83.4755),
     db.prepare("INSERT INTO facilities (customer,name,address,city,latitude,longitude) VALUES (?,?,?,?,?,?)").bind("Redwood Residential","Woodward Flats","410 S. Main St","Royal Oak, MI",42.4863,-83.1447),
   ]);
+  const parkview = await db.prepare("SELECT id FROM facilities WHERE name=? ORDER BY id DESC LIMIT 1").bind("Parkview Commons").first<{id:number}>();
+  const westgate = await db.prepare("SELECT id FROM facilities WHERE name=? ORDER BY id DESC LIMIT 1").bind("Westgate Plaza").first<{id:number}>();
+  const woodward = await db.prepare("SELECT id FROM facilities WHERE name=? ORDER BY id DESC LIMIT 1").bind("Woodward Flats").first<{id:number}>();
+  if (!parkview || !westgate || !woodward) throw new Error("Demo facilities could not be seeded.");
   await db.batch([
-    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("SC-847219",1,"Loading dock door won’t close","Spring appears damaged and the door is secured.","Service scheduled","routine",1200,1000,750,"Great Lakes Door Co.","Tue · 8–10 AM"),
-    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("SC-846882",1,"Exterior light outage","Three pole lights are not operating.","FDI reviewing","routine",900,null,null,null,null),
-    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("SC-845104",1,"Back-room floor drain","Drain cleared and area cleaned.","Completed","routine",800,640,480,"Motor City Access","Closed Jul 21"),
-    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("FDI-1052",3,"Rear entry spring failure","Rear entry spring failed; door is secured.","Vendor invitation","urgent",1200,null,920,null,"Today · 2–5 PM"),
-    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("FDI-1056",2,"Overhead door safety inspection","Inspect overhead door and document safety condition.","Vendor invitation","routine",700,null,480,null,"Wed · Flexible"),
+    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("SC-847219",parkview.id,"Loading dock door won’t close","Spring appears damaged and the door is secured.","Service scheduled","routine",1200,1000,750,"Great Lakes Door Co.","Tue · 8–10 AM"),
+    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("SC-846882",parkview.id,"Exterior light outage","Three pole lights are not operating.","FDI reviewing","routine",900,null,null,null,null),
+    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("SC-845104",parkview.id,"Back-room floor drain","Drain cleared and area cleaned.","Completed","routine",800,640,480,"Motor City Access","Closed Jul 21"),
+    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("FDI-1052",woodward.id,"Rear entry spring failure","Rear entry spring failed; door is secured.","Vendor invitation","urgent",1200,null,920,null,"Today · 2–5 PM"),
+    db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("FDI-1056",westgate.id,"Overhead door safety inspection","Inspect overhead door and document safety condition.","Vendor invitation","routine",700,null,480,null,"Wed · Flexible"),
   ]);
   await db.batch([
-    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(1,"Great Lakes Door Co.","accepted",750),
-    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(4,"Great Lakes Door Co.","invited",920),
-    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(5,"Great Lakes Door Co.","invited",480),
-    db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) VALUES (?,?,?,?)").bind(1,"fdi","Zak Keller","Please confirm your arrival window. Diagnose and make safe, then contact me before additional work."),
+    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) SELECT id,?,?,? FROM work_orders WHERE customer_wo=?").bind("Great Lakes Door Co.","accepted",750,"SC-847219"),
+    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) SELECT id,?,?,? FROM work_orders WHERE customer_wo=?").bind("Great Lakes Door Co.","invited",920,"FDI-1052"),
+    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) SELECT id,?,?,? FROM work_orders WHERE customer_wo=?").bind("Great Lakes Door Co.","invited",480,"FDI-1056"),
+    db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) SELECT id,?,?,? FROM work_orders WHERE customer_wo=?").bind("fdi","Zak Keller","Please confirm your arrival window. Diagnose and make safe, then contact me before additional work.","SC-847219"),
   ]);
 }
 
