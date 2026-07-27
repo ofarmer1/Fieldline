@@ -32,6 +32,7 @@ export const invitations = sqliteTable("invitations", {
   workOrderId: integer("work_order_id").notNull().references(() => workOrders.id),
   vendor: text("vendor").notNull(),
   status: text("status").notNull().default("invited"),
+  originalAmount: integer("original_amount").notNull().default(0),
   offeredAmount: integer("offered_amount").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

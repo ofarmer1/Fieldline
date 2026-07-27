@@ -25,9 +25,11 @@ test("server-renders the Fieldline operations prototype", async () => {
 });
 
 test("preserves the recovered brief and pilot boundaries", async () => {
-  const [brief, page, packageJson] = await Promise.all([
+  const [brief, page, api, schema, packageJson] = await Promise.all([
     readFile(new URL("../PRODUCT_BRIEF.md", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/demo/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(brief, /not an open marketplace/i);
@@ -42,5 +44,20 @@ test("preserves the recovered brief and pilot boundaries", async () => {
   assert.match(page, /action:"counter_offer"/);
   assert.match(page, /function LiveWorkflowPage/);
   assert.match(page, /Authorize & submit/);
+  assert.match(page, /function VendorBidStatus/);
+  assert.match(page, /function CustomerApprovals/);
+  assert.match(page, /action:"fdi_decision"/);
+  assert.match(page, /action:"customer_decision"/);
+  assert.match(page, /ORIGINAL VENDOR AUTHORIZATION/);
+  assert.match(page, /Send revised proposal to customer/);
+  assert.match(page, /Decline counter/);
+  assert.match(page, /Hold \/ waitlist/);
+  assert.match(page, /Request revision/);
+  assert.match(api, /status='customer_review'/);
+  assert.match(api, /status='revision_requested'/);
+  assert.match(api, /status='counter_declined'/);
+  assert.match(api, /status='customer_declined'/);
+  assert.match(api, /The proposed customer price exceeds the current NTE/);
+  assert.match(schema, /originalAmount: integer\("original_amount"\)/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });

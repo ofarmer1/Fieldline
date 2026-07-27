@@ -6,6 +6,15 @@ The prototype now demonstrates one continuous transaction rather than separate r
 
 FDI remains the accountable managed-service operator and controls the approved network, eligibility rules, pricing policy, exception handling, quality, customer invoicing, and vendor administration. This is not a public marketplace. Customers continue to see one FDI price; vendor pricing, FDI margin, competing vendors, and selection logic remain private.
 
+### Counteroffer state model
+
+1. A vendor counter remains visible in the vendor's **Bids & status** queue as `FDI reviewing`; it is never mislabeled as an authorization.
+2. FDI sees the customer-issued NTE, original vendor authorization, vendor counter, and proposed FDI customer price as four separate values.
+3. FDI may decline the counter, hold/waitlist it, request a vendor revision, approve it when the FDI price remains within NTE, or send a revised proposal to the customer when it exceeds NTE.
+4. A revised customer proposal requires an FDI explanation and appears in the Store Manager's **Approvals** queue. The customer may approve or decline and can message FDI on the work order.
+5. Customer approval raises the recorded authorization to the approved FDI price, accepts the vendor's counter, schedules the same work order, and makes the assignment visible under the vendor's **My jobs** view. A decline remains visible to FDI and the vendor.
+6. Messages and decision status stay attached to the shared work order throughout review; customer and vendor financial visibility remains separated.
+
 ## Purpose and boundary
 
 This repository is Oliver Farmer's independent prototype for FDI's facilities-maintenance workflow. It is separate from FDI's current PBR roadmap. The prototype is a private, managed network—not an open marketplace. Customers receive one final FDI proposal; vendor invitations, bids, selection logic, and FDI margin remain internal.
@@ -45,4 +54,4 @@ Oliver should work with Zak to obtain three anonymized examples: a routine repai
 
 ## Prototype direction
 
-Provisional product name: **Fieldline** — “Every work order, under control.” The prototype is a desktop-first operations cockpit with realistic Michigan pilot data, a guided job record, private bid review, pricing calculator, NTE history, evidence, and closeout status. It uses browser-local demo state only; no production integrations or persistent customer data are implied.
+Provisional product name: **Fieldline** — “Every work order, under control.” The prototype is a desktop-first operations cockpit with realistic Michigan pilot data, a guided job record, private bid review, pricing calculator, NTE history, evidence, and closeout status. Its three role views share a small hosted demo database so the transaction can be tested continuously. The data is fictional and resettable; no production integrations or real customer data are implied.

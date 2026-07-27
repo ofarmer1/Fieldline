@@ -1,7 +1,7 @@
 import { getDemoDb } from "../../../db/runtime";
 
 type DemoAction = {
-  action?: "create_request" | "invitation_response" | "counter_offer" | "fdi_approve" | "message" | "reset";
+  action?: "create_request" | "invitation_response" | "counter_offer" | "fdi_approve" | "fdi_decision" | "customer_decision" | "message" | "reset";
   invitationId?: number;
   response?: "accepted" | "declined";
   facilityId?: number;
@@ -15,6 +15,8 @@ type DemoAction = {
   body?: string;
   senderRole?: string;
   amount?: number;
+  decision?: "approve" | "decline" | "hold" | "request_revision" | "send_customer";
+  note?: string;
 };
 
 function estimateRequest(title: string, description: string, nte: number) {
@@ -42,9 +44,9 @@ async function seedIfEmpty() {
     db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost,assigned_vendor,service_window) VALUES (?,?,?,?,?,?,?,?,?,?,?)").bind("FDI-1056",2,"Overhead door safety inspection","Inspect overhead door and document safety condition.","Vendor invitation","routine",700,null,480,null,"Wed · Flexible"),
   ]);
   await db.batch([
-    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(1,"Great Lakes Door Co.","accepted",750),
-    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(4,"Great Lakes Door Co.","invited",920),
-    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(5,"Great Lakes Door Co.","invited",480),
+    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,original_amount,offered_amount) VALUES (?,?,?,?,?)").bind(1,"Great Lakes Door Co.","accepted",750,750),
+    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,original_amount,offered_amount) VALUES (?,?,?,?,?)").bind(4,"Great Lakes Door Co.","invited",920,920),
+    db.prepare("INSERT INTO invitations (work_order_id,vendor,status,original_amount,offered_amount) VALUES (?,?,?,?,?)").bind(5,"Great Lakes Door Co.","invited",480,480),
     db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) VALUES (?,?,?,?)").bind(1,"fdi","Zak Keller","Please confirm your arrival window. Diagnose and make safe, then contact me before additional work."),
   ]);
 }
@@ -52,16 +54,22 @@ async function seedIfEmpty() {
 export async function GET(request: Request) {
   await seedIfEmpty();
   const db = getDemoDb();
-  const view = new URL(request.url).searchParams.get("view") ?? "fdi";
+  const url = new URL(request.url);
+  const view = url.searchParams.get("view") ?? "fdi";
+  const messageWorkOrderId = Number(url.searchParams.get("workOrderId"));
+  if (view === "messages" && messageWorkOrderId) {
+    const { results } = await db.prepare("SELECT * FROM messages WHERE work_order_id=? ORDER BY id ASC").bind(messageWorkOrderId).all();
+    return Response.json({ messages:results });
+  }
   if (view === "vendor") {
-    const { results } = await db.prepare("SELECT i.id AS invitationId, i.status AS invitationStatus, i.offered_amount AS offeredAmount, w.*, f.name AS facilityName, f.city, f.address FROM invitations i JOIN work_orders w ON w.id=i.work_order_id JOIN facilities f ON f.id=w.facility_id WHERE i.vendor=? ORDER BY w.id DESC").bind("Great Lakes Door Co.").all();
+    const { results } = await db.prepare("SELECT i.id AS invitationId, i.status AS invitationStatus, i.original_amount AS originalAmount, i.offered_amount AS offeredAmount, w.*, f.name AS facilityName, f.city, f.address FROM invitations i JOIN work_orders w ON w.id=i.work_order_id JOIN facilities f ON f.id=w.facility_id WHERE i.vendor=? ORDER BY w.id DESC").bind("Great Lakes Door Co.").all();
     return Response.json({ jobs: results });
   }
   if (view === "customer") {
     const { results } = await db.prepare("SELECT w.*, f.name AS facilityName, f.city, f.address, f.customer, f.latitude, f.longitude FROM work_orders w JOIN facilities f ON f.id=w.facility_id WHERE f.customer=? ORDER BY w.id DESC").bind("Northpoint Retail Group").all();
     return Response.json({ workOrders: results });
   }
-  const { results } = await db.prepare("SELECT w.*, f.name AS facilityName, f.city, f.address, f.customer, f.latitude, f.longitude FROM work_orders w JOIN facilities f ON f.id=w.facility_id ORDER BY w.id DESC").all();
+  const { results } = await db.prepare("SELECT w.*, f.name AS facilityName, f.city, f.address, f.customer, f.latitude, f.longitude, i.status AS invitationStatus, i.original_amount AS originalVendorAmount FROM work_orders w JOIN facilities f ON f.id=w.facility_id LEFT JOIN invitations i ON i.work_order_id=w.id ORDER BY w.id DESC").all();
   return Response.json({ workOrders: results });
 }
 
@@ -77,7 +85,7 @@ export async function POST(request: Request) {
     const estimate = estimateRequest(payload.title, payload.description, nte);
     const result = await db.prepare("INSERT INTO work_orders (customer_wo,facility_id,title,description,status,priority,nte,customer_price,vendor_cost) VALUES (?,?,?,?,?,?,?,?,?)").bind(customerWo,payload.facilityId||1,payload.title.trim(),payload.description.trim(),"Vendor invitation",payload.urgent?"urgent":"routine",nte,estimate.customerPrice,estimate.vendorCost).run();
     const workOrderId = Number(result.meta.last_row_id);
-    await db.prepare("INSERT INTO invitations (work_order_id,vendor,status,offered_amount) VALUES (?,?,?,?)").bind(workOrderId,"Great Lakes Door Co.","invited",estimate.vendorCost).run();
+    await db.prepare("INSERT INTO invitations (work_order_id,vendor,status,original_amount,offered_amount) VALUES (?,?,?,?,?)").bind(workOrderId,"Great Lakes Door Co.","invited",estimate.vendorCost,estimate.vendorCost).run();
     return Response.json({ ok:true, id:workOrderId, customerWo, estimate },{status:201});
   }
   if (payload.action === "invitation_response" && payload.invitationId && payload.response) {
@@ -108,8 +116,53 @@ export async function POST(request: Request) {
     ]);
     return Response.json({ok:true,status:"Service scheduled"});
   }
+  if (payload.action === "fdi_decision" && payload.workOrderId && payload.decision) {
+    const job = await db.prepare("SELECT customer_price AS customerPrice, nte FROM work_orders WHERE id=?").bind(payload.workOrderId).first<{customerPrice:number;nte:number}>();
+    if (!job) return Response.json({error:"Work order not found"},{status:404});
+    const note = payload.note?.trim();
+    if (note) await db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) VALUES (?,?,?,?)").bind(payload.workOrderId,"fdi","Zak Keller",note).run();
+    if (payload.decision === "send_customer") {
+      if (!note) return Response.json({error:"Add a customer message explaining the revised proposal."},{status:400});
+      await db.batch([
+        db.prepare("UPDATE work_orders SET status='Customer approval required' WHERE id=?").bind(payload.workOrderId),
+        db.prepare("UPDATE invitations SET status='customer_review' WHERE work_order_id=? AND status IN ('countered','waitlisted')").bind(payload.workOrderId),
+      ]);
+      return Response.json({ok:true,status:"Customer approval required"});
+    }
+    if (payload.decision === "hold") {
+      await db.batch([db.prepare("UPDATE work_orders SET status='FDI hold — reviewing' WHERE id=?").bind(payload.workOrderId),db.prepare("UPDATE invitations SET status='waitlisted' WHERE work_order_id=? AND status='countered'").bind(payload.workOrderId)]);
+      return Response.json({ok:true,status:"FDI hold — reviewing"});
+    }
+    if (payload.decision === "request_revision") {
+      await db.batch([db.prepare("UPDATE work_orders SET status='Vendor revision requested' WHERE id=?").bind(payload.workOrderId),db.prepare("UPDATE invitations SET status='revision_requested' WHERE work_order_id=?").bind(payload.workOrderId)]);
+      return Response.json({ok:true,status:"Vendor revision requested"});
+    }
+    if (payload.decision === "decline") {
+      await db.batch([db.prepare("UPDATE work_orders SET status='Vendor counter declined' WHERE id=?").bind(payload.workOrderId),db.prepare("UPDATE invitations SET status='counter_declined' WHERE work_order_id=?").bind(payload.workOrderId)]);
+      return Response.json({ok:true,status:"Vendor counter declined"});
+    }
+    if (payload.decision === "approve") {
+      if (job.customerPrice > job.nte) return Response.json({error:"The proposed customer price exceeds the current NTE. Send it to the customer for approval."},{status:409});
+      await db.batch([db.prepare("UPDATE work_orders SET status='Service scheduled', assigned_vendor='Great Lakes Door Co.', service_window=COALESCE(service_window,'Next business day · 8–10 AM') WHERE id=?").bind(payload.workOrderId),db.prepare("UPDATE invitations SET status='accepted' WHERE work_order_id=?").bind(payload.workOrderId)]);
+      return Response.json({ok:true,status:"Service scheduled"});
+    }
+  }
+  if (payload.action === "customer_decision" && payload.workOrderId && (payload.decision === "approve" || payload.decision === "decline")) {
+    const job = await db.prepare("SELECT customer_price AS customerPrice FROM work_orders WHERE id=?").bind(payload.workOrderId).first<{customerPrice:number}>();
+    if (!job) return Response.json({error:"Work order not found"},{status:404});
+    const note = payload.note?.trim() || (payload.decision === "approve" ? "Revised proposal approved." : "Revised proposal declined.");
+    await db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) VALUES (?,?,?,?)").bind(payload.workOrderId,"customer","Maria Santos",note).run();
+    if (payload.decision === "approve") {
+      await db.batch([db.prepare("UPDATE work_orders SET status='Service scheduled', nte=?, assigned_vendor='Great Lakes Door Co.', service_window=COALESCE(service_window,'Next business day · 8–10 AM') WHERE id=?").bind(job.customerPrice,payload.workOrderId),db.prepare("UPDATE invitations SET status='accepted' WHERE work_order_id=?").bind(payload.workOrderId)]);
+      return Response.json({ok:true,status:"Service scheduled"});
+    }
+    await db.batch([db.prepare("UPDATE work_orders SET status='Customer declined proposal' WHERE id=?").bind(payload.workOrderId),db.prepare("UPDATE invitations SET status='customer_declined' WHERE work_order_id=?").bind(payload.workOrderId)]);
+    return Response.json({ok:true,status:"Customer declined proposal"});
+  }
   if (payload.action === "message" && payload.workOrderId && payload.body?.trim()) {
-    await db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) VALUES (?,?,?,?)").bind(payload.workOrderId,payload.senderRole||"vendor",payload.senderRole==="customer"?"Maria Santos":"Great Lakes Door Co.",payload.body.trim()).run();
+    const senderRole = payload.senderRole || "vendor";
+    const senderName = senderRole === "customer" ? "Maria Santos" : senderRole === "fdi" ? "Zak Keller" : "Great Lakes Door Co.";
+    await db.prepare("INSERT INTO messages (work_order_id,sender_role,sender_name,body) VALUES (?,?,?,?)").bind(payload.workOrderId,senderRole,senderName,payload.body.trim()).run();
     return Response.json({ ok:true },{status:201});
   }
   if (payload.action === "reset") {
