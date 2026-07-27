@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Stage = "overview" | "intake" | "bids" | "approval" | "field" | "closeout";
 type Section = "work" | "vendors" | "customers" | "accounting";
@@ -46,6 +46,11 @@ export default function Home() {
     window.setTimeout(() => setNotice(""), 2600);
   }
 
+  async function resetDemo() {
+    const response = await fetch("/api/demo", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({action:"reset"}) });
+    flash(response.ok ? "Demo data restored — refresh other open views" : "Demo data could not be restored");
+  }
+
   if (role !== "fdi") return <ExternalPortal key={role} role={role} setRole={setRole} flash={flash} notice={notice} />;
 
   return (
@@ -66,7 +71,7 @@ export default function Home() {
       <section className="workspace">
         <header className="topbar">
           <div className="breadcrumbs"><span>{section === "work" ? "Work orders" : section[0].toUpperCase() + section.slice(1)}</span>{section === "work" && <><i>/</i><strong>WO-1048</strong></>}</div>
-          <div className="top-actions"><RoleSwitcher role={role} setRole={setRole} /><button className="icon-button" aria-label="Search">⌕</button><button className="icon-button" aria-label="Notifications">♢<em>2</em></button><button className="primary" onClick={() => flash("Update shared with the assigned team")}>Send update <span>↗</span></button></div>
+          <div className="top-actions"><RoleSwitcher role={role} setRole={setRole} /><button className="secondary demo-reset" onClick={resetDemo}>Reset demo</button><button className="icon-button" aria-label="Search">⌕</button><button className="icon-button" aria-label="Notifications">♢<em>2</em></button><button className="primary" onClick={() => flash("Update shared with the assigned team")}>Send update <span>↗</span></button></div>
         </header>
 
         {section === "work" ? <div className="content">
@@ -127,13 +132,12 @@ function VendorExperience({ tab, setTab, flash }: { tab: string; setTab: (tab: s
 }
 
 function VendorJobs({ setTab, flash }: { setTab: (tab: string) => void; flash: (s: string) => void }) {
-  const [hidden, setHidden] = useState<string[]>([]);
-  const jobs = [
-    { id:"FDI-1048", title:"Loading dock door won’t close", area:"Troy, MI · 11 miles", trade:"Door systems", window:"Tue · 8–10 AM", amount:"$750", urgent:false },
-    { id:"FDI-1052", title:"Rear entry spring failure", area:"Royal Oak, MI · 7 miles", trade:"Door systems", window:"Today · 2–5 PM", amount:"$920", urgent:true },
-    { id:"FDI-1056", title:"Overhead door safety inspection", area:"Novi, MI · 24 miles", trade:"Door systems", window:"Wed · Flexible", amount:"$480", urgent:false },
-  ].filter(job => !hidden.includes(job.id));
-  return <div className="jobs-layout"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Jobs available to your company</h2><p>Private invitations matched to your trades, service area, compliance, and availability.</p></div><Badge tone="green">{jobs.length} invitations</Badge></div><div className="job-invite-list">{jobs.map((job,i)=><article key={job.id} className={job.urgent?"urgent":""}><div className="invite-main"><div><Badge tone={job.urgent?"red":"blue"}>{job.urgent?"Urgent":"Routine FM"}</Badge><small>{job.id} · {job.trade}</small></div><h3>{job.title}</h3><p>● {job.area} <span>·</span> ◷ {job.window}</p></div><div className="invite-price"><small>AUTHORIZED AMOUNT</small><strong>{job.amount}</strong><span>Paid by FDI</span></div><div className="invite-actions"><button className="text-button" onClick={()=>{setHidden([...hidden,job.id]);flash(`${job.id} declined — FDI was notified`)}}>Decline</button><button className="secondary" onClick={()=>i===0?setTab("opportunity"):flash(`${job.id} details opened`)}>View details</button><button className="primary" onClick={()=>{flash(`${job.id} accepted`);setTab(i===0?"schedule":"jobs")}}>Accept</button></div></article>)}</div>{jobs.length===0&&<div className="empty-state"><strong>You’re all caught up</strong><p>New invitations matching your coverage will appear here.</p></div>}</section><FacilityMap vendor /></div>;
+  type VendorJob={id:number;invitationId:number;invitationStatus:string;offeredAmount:number;customer_wo:string;title:string;city:string;priority:string;service_window:string|null;assigned_vendor:string|null};
+  const [jobs,setJobs]=useState<VendorJob[]>([]); const [loading,setLoading]=useState(true);
+  const load=()=>fetch("/api/demo?view=vendor").then(r=>r.json()).then(d=>setJobs((d.jobs||[]).filter((j:VendorJob)=>j.invitationStatus==="invited"))).finally(()=>setLoading(false));
+  useEffect(()=>{load()},[]);
+  async function respond(job:VendorJob,response:"accepted"|"declined"){await fetch("/api/demo",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"invitation_response",invitationId:job.invitationId,response})});flash(`${job.customer_wo} ${response} — FDI was notified`);await load();if(response==="accepted")setTab("schedule")}
+  return <div className="jobs-layout"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Jobs available to your company</h2><p>Private invitations matched to your trades, service area, compliance, and availability.</p></div><Badge tone="green">{loading?"Loading…":`${jobs.length} invitations`}</Badge></div><div className="job-invite-list">{jobs.map((job,i)=><article key={job.invitationId} className={job.priority==="urgent"?"urgent":""}><div className="invite-main"><div><Badge tone={job.priority==="urgent"?"red":"blue"}>{job.priority==="urgent"?"Urgent":"Routine FM"}</Badge><small>{job.customer_wo} · Door systems</small></div><h3>{job.title}</h3><p>● {job.city} <span>·</span> ◷ {job.service_window||"Flexible"}</p></div><div className="invite-price"><small>AUTHORIZED AMOUNT</small><strong><Money value={job.offeredAmount}/></strong><span>Paid by FDI</span></div><div className="invite-actions"><button className="text-button" onClick={()=>respond(job,"declined")}>Decline</button><button className="secondary" onClick={()=>i===0?setTab("opportunity"):flash(`${job.customer_wo} details opened`)}>View details</button><button className="primary" onClick={()=>respond(job,"accepted")}>Accept</button></div></article>)}</div>{!loading&&jobs.length===0&&<div className="empty-state"><strong>You’re all caught up</strong><p>New invitations matching your coverage will appear here.</p></div>}</section><FacilityMap vendor /></div>;
 }
 
 function VendorGuardrail() {
@@ -151,16 +155,17 @@ function CustomerExperience({ tab, setTab, flash }: { tab: string; setTab: (tab:
 
 function NewCustomerRequest({ setTab, flash }: { setTab: (tab: string) => void; flash: (s: string) => void }) {
   const [urgent,setUrgent]=useState(false);
-  return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Submit a service request</h2><p>Tell FDI what is happening. Your coordinator will review it and manage the work.</p></div><Badge tone={urgent?"red":"blue"}>{urgent?"Urgent":"Routine FM"}</Badge></div><div className="request-form"><label>Facility<select defaultValue="parkview"><option value="parkview">Parkview Commons — Troy</option><option>Westgate Plaza — Livonia</option></select></label><label>Area at facility<input placeholder="Example: rear loading dock" /></label><label className="wide">What needs attention?<textarea placeholder="Describe the problem, current condition, and anything FDI should know…" /></label><label>Issued NTE<div className="money-input"><span>$</span><input placeholder="1,200" /></div></label><label>Customer work-order number<input placeholder="Optional if not yet assigned" /></label></div><button className="upload-request" onClick={()=>flash("Photo attachment area opened")}><span>＋</span><strong>Add photos</strong><small>Condition, equipment, and surrounding area</small></button><label className="urgent-check"><input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)}/><div><strong>This is urgent or unsafe</strong><small>FDI will notify the assigned coordinator or configured on-call contact.</small></div></label><div className="portal-actions"><button className="secondary" onClick={()=>flash("Request saved as draft")}>Save draft</button><button className="primary" onClick={()=>{flash("Request submitted to FDI");setTab("requests")}}>Submit request</button></div></section><CustomerHelp /></div>;
+  const [form,setForm]=useState({facilityId:"1",area:"",title:"",description:"",nte:"",customerWo:""}); const [saving,setSaving]=useState(false);
+  function field(name:string,value:string){setForm({...form,[name]:value})}
+  async function submit(){if(!form.title.trim()||!form.description.trim()){flash("Add a request title and description");return}setSaving(true);const res=await fetch("/api/demo",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"create_request",facilityId:Number(form.facilityId),title:form.title,description:`${form.area?form.area+": ":""}${form.description}`,nte:Number(form.nte),customerWo:form.customerWo,urgent})});setSaving(false);if(res.ok){flash("Request saved and submitted to FDI");setTab("requests")}else flash("Request could not be saved")}
+  return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>Submit a service request</h2><p>Tell FDI what is happening. Your coordinator will review it and manage the work.</p></div><Badge tone={urgent?"red":"blue"}>{urgent?"Urgent":"Routine FM"}</Badge></div><div className="request-form"><label>Facility<select value={form.facilityId} onChange={e=>field("facilityId",e.target.value)}><option value="1">Parkview Commons — Troy</option><option value="2">Westgate Plaza — Novi</option></select></label><label>Area at facility<input value={form.area} onChange={e=>field("area",e.target.value)} placeholder="Example: rear loading dock" /></label><label className="wide">Request title<input value={form.title} onChange={e=>field("title",e.target.value)} placeholder="Example: Rear door will not close" /></label><label className="wide">What needs attention?<textarea value={form.description} onChange={e=>field("description",e.target.value)} placeholder="Describe the problem, current condition, and anything FDI should know…" /></label><label>Issued NTE<div className="money-input"><span>$</span><input value={form.nte} onChange={e=>field("nte",e.target.value)} placeholder="1,200" /></div></label><label>Customer work-order number<input value={form.customerWo} onChange={e=>field("customerWo",e.target.value)} placeholder="Optional if not yet assigned" /></label></div><button className="upload-request" onClick={()=>flash("Photo attachments will use secure demo storage next")}><span>＋</span><strong>Add photos</strong><small>Condition, equipment, and surrounding area</small></button><label className="urgent-check"><input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)}/><div><strong>This is urgent or unsafe</strong><small>FDI will notify the assigned coordinator or configured on-call contact.</small></div></label><div className="portal-actions"><button className="secondary" onClick={()=>flash("Draft retained on this form")}>Save draft</button><button className="primary" disabled={saving} onClick={submit}>{saving?"Submitting…":"Submit request"}</button></div></section><CustomerHelp /></div>;
 }
 
 function CustomerRequests({ setTab }: { setTab: (tab: string) => void }) {
-  const requests=[
-    {id:"SC-847219",title:"Loading dock door won’t close",status:"Service scheduled",tone:"green" as const,date:"Today",next:"Tue · 8–10 AM",price:"$1,000"},
-    {id:"SC-846882",title:"Exterior light outage",status:"FDI reviewing",tone:"amber" as const,date:"Jul 24",next:"Update due today",price:"Pending"},
-    {id:"SC-845104",title:"Back-room floor drain",status:"Completed",tone:"blue" as const,date:"Jul 18",next:"Closed Jul 21",price:"$640"},
-  ];
-  return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>My service requests</h2><p>Track every request for facilities you are authorized to manage.</p></div><button className="primary" onClick={()=>setTab("new")}>＋ New request</button></div><div className="request-list">{requests.map((r,i)=><button key={r.id} onClick={()=>i===0&&setTab("request")}><span className="request-icon">{i===2?"✓":"⌂"}</span><div><small>{r.id} · Submitted {r.date}</small><strong>{r.title}</strong><span>{r.next}</span></div><Badge tone={r.tone}>{r.status}</Badge><div className="request-price"><small>FDI PRICE</small><strong>{r.price}</strong></div><i>→</i></button>)}</div></section><CustomerHelp /></div>;
+  type CustomerJob={id:number;customer_wo:string;title:string;status:string;created_at:string;service_window:string|null;customer_price:number|null}; const [requests,setRequests]=useState<CustomerJob[]>([]); const [loading,setLoading]=useState(true);
+  useEffect(()=>{fetch("/api/demo?view=customer").then(r=>r.json()).then(d=>setRequests(d.workOrders||[])).finally(()=>setLoading(false))},[]);
+  const tone=(status:string):"green"|"amber"|"blue"=>status.includes("scheduled")?"green":status==="Completed"?"blue":"amber";
+  return <div className="portal-two-col"><section className="portal-panel"><div className="portal-panel-title"><div><h2>My service requests</h2><p>Track every request for facilities you are authorized to manage.</p></div><button className="primary" onClick={()=>setTab("new")}>＋ New request</button></div>{loading&&<div className="empty-state"><strong>Loading requests…</strong></div>}<div className="request-list">{requests.map((r,i)=><button key={r.id} onClick={()=>r.customer_wo==="SC-847219"&&setTab("request")}><span className="request-icon">{r.status==="Completed"?"✓":"⌂"}</span><div><small>{r.customer_wo} · {new Date(r.created_at+"Z").toLocaleDateString()}</small><strong>{r.title}</strong><span>{r.service_window||"FDI coordinator reviewing"}</span></div><Badge tone={tone(r.status)}>{r.status}</Badge><div className="request-price"><small>FDI PRICE</small><strong>{r.customer_price?<Money value={r.customer_price}/>:"Pending"}</strong></div><i>→</i></button>)}</div></section><CustomerHelp /></div>;
 }
 
 function FacilityMap({ vendor=false }: { vendor?: boolean }) {
