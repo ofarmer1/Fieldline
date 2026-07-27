@@ -58,6 +58,8 @@ test("preserves the recovered brief and pilot boundaries", async () => {
   assert.match(api, /status='counter_declined'/);
   assert.match(api, /status='customer_declined'/);
   assert.match(api, /The proposed customer price exceeds the current NTE/);
-  assert.match(schema, /originalAmount: integer\("original_amount"\)/);
+  assert.match(schema, /offeredAmount: integer\("offered_amount"\)/);
+  assert.match(api, /i\.offered_amount AS originalAmount/);
+  assert.match(api, /UPDATE invitations SET status='countered' WHERE id=\?/);
   assert.doesNotMatch(packageJson, /react-loading-skeleton/);
 });

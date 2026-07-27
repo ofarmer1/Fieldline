@@ -1,1 +1,0 @@
-ALTER TABLE `invitations` ADD `original_amount` integer DEFAULT 0 NOT NULL;
